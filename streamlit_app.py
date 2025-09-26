@@ -95,6 +95,9 @@ def main():
         st.session_state["messages"] = []
     if "session_history" not in st.session_state:
         st.session_state["session_history"] = {}
+    # 톤 상태 초기화 (default: 친절하게)
+    if "tone" not in st.session_state:
+        st.session_state["tone"] = "친절하게"  # 또는 "불친절하게"
 
     with st.sidebar:
         st.session_state["OPENAI_API"] = st.text_input("OPENAI API 키", placeholder="Enter Your API Key", type="password")
@@ -117,6 +120,14 @@ def main():
         # LLM 설정
         llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
+        # 시스템 프롬프트에 톤을 동적으로 포함
+        tone_instruction = ""
+        if st.session_state["tone"] == "친절하게":
+            tone_instruction = "Respond in a kind, polite, and helpful tone in Korean. Use friendly emojis and polite phrasing."
+        else:
+            # '불친절하게'는 과도하게 무례하거나 해로운 표현은 피하도록 유의하세요.
+            tone_instruction = "Respond in a curt, blunt, and less friendly tone in Korean (shorter sentences, fewer emojis). Avoid abusive or harmful language."
+
         prompt = ChatPromptTemplate.from_messages(
             [
                 ("system",
@@ -125,19 +136,34 @@ def main():
                 "If you can't find the information from the PDF document, use the `web_search` tool for searching information from the web. "
                 "If the user’s question contains words like '최신', '현재', or '오늘', you must ALWAYS use the `web_search` tool to ensure real-time information is retrieved. "
                 "Please always include emojis in your responses with a friendly tone. "
-                "Your name is `AI 비서 톡톡이`. Please introduce yourself at the beginning of the conversation."),
+                "Your name is `AI 비서 톡톡이`. Please introduce yourself at the beginning of the conversation. "
+                + tone_instruction  # 여기에 선택된 톤 설명 추가
+                ),
                 ("placeholder", "{chat_history}"),
                 ("human", "{input} \n\n Be sure to include emoji in your responses."),
                 ("placeholder", "{agent_scratchpad}"),
             ]
         )
 
-
         agent = create_tool_calling_agent(llm, tools, prompt)
         agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
         # 입력창
         user_input = st.chat_input('질문이 무엇인가요?')
+
+        # --- 톤 선택 버튼 (채팅창 아래에 보이도록 columns 사용)
+        cols = st.columns([1, 1])
+        with cols[0]:
+            if st.button("친절하게"):
+                st.session_state["tone"] = "친절하게"
+                st.experimental_rerun()  # 톤 변경 즉시 반영
+        with cols[1]:
+            if st.button("불친절하게"):
+                st.session_state["tone"] = "불친절하게"
+                st.experimental_rerun()  # 톤 변경 즉시 반영
+
+        # 톤 상태 표시 (작게)
+        st.caption(f"현재 응답 톤: **{st.session_state['tone']}**")
 
         if user_input:
             session_id = "default_session"
